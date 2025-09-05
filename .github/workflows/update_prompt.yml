@@ -25,13 +25,13 @@ jobs:
           pip install requests beautifulsoup4
 
       - name: Aggiorna prompt
-        run: python ./update_prompt_full_calendar.py
+        run: python src/update_prompt_full_calendar.py
 
       - name: Commit & Push aggiornamenti
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add prompt.json
+          git add src/prompt.json
           git commit -m "🤖 Aggiornato prompt.json con calendario corsi" || echo "Nessuna modifica da committare"
           git push
         env:
