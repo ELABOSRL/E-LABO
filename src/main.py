@@ -19,7 +19,7 @@ def main(context):
         Client()
         .set_endpoint(os.environ["APPWRITE_FUNCTION_API_ENDPOINT"])
         .set_project(os.environ["APPWRITE_FUNCTION_PROJECT_ID"])
-        .set_key(context.req.headers["x-appwrite-key"])
+        .set_key(context.req.headers.get("x-appwrite-key", ""))
     )
 
     context.log("✅ Connessione Appwrite OK.")
@@ -40,10 +40,28 @@ def main(context):
 
     if context.req.method == "POST":
         try:
-            # Estrai dati
-            data = context.req.body if isinstance(context.req.body, dict) else json.loads(context.req.body)
+            # ✅ Gestione sicura del body
+            raw_body = context.req.body
+            if not raw_body:
+                data = {}
+            elif isinstance(raw_body, dict):
+                data = raw_body
+            else:
+                try:
+                    data = json.loads(raw_body)
+                except Exception:
+                    context.error(f"❌ Body non è JSON valido: {raw_body}")
+                    data = {}
+
             user_msg = data.get("msg", "").strip()
             history = data.get("history", [])
+
+            if not user_msg:
+                return {
+                    "statusCode": 400,
+                    "headers": cors_headers,
+                    "body": json.dumps({"error": "Campo 'msg' mancante o vuoto"})
+                }
 
             # Carica prompt.json
             with open(os.path.join(os.path.dirname(__file__), "prompt.json"), "r") as f:
