@@ -2,6 +2,7 @@ from appwrite.client import Client
 from appwrite.exception import AppwriteException
 import os
 import json
+import csv
 import google.generativeai as genai
 
 # Headers CORS
@@ -11,6 +12,24 @@ cors_headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Credentials": "true"
 }
+
+
+def load_courses_from_csv(file_path):
+    """Legge i corsi dal CSV e li converte in testo leggibile per il prompt."""
+    courses = []
+    try:
+        with open(file_path, newline='', encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                titolo = row.get("Titolo", "").strip()
+                data = row.get("Data", "").strip()
+                orario = row.get("Orario", "").strip()
+                link = row.get("Link", "").strip()
+                if titolo:
+                    courses.append(f"- {titolo} ({data}, {orario}) → {link}")
+    except Exception as e:
+        courses.append(f"[⚠️ Errore nel caricamento corsi: {e}]")
+    return "\n".join(courses)
 
 
 def main(context):
@@ -64,10 +83,17 @@ def main(context):
                 }
 
             # Carica prompt.json
-            with open(os.path.join(os.path.dirname(__file__), "prompt.json"), "r") as f:
+            with open(os.path.join(os.path.dirname(__file__), "prompt.json"), "r", encoding="utf-8") as f:
                 prompt_data = json.load(f)
 
             system_instruction = prompt_data.get("system_instruction", "")
+
+            # Carica corsi dal CSV (stesso repo di main.py)
+            courses_file = os.path.join(os.path.dirname(__file__), "Corsi E_Labo.csv")
+            courses_text = load_courses_from_csv(courses_file)
+
+            # Aggiorna il system instruction con i corsi
+            system_instruction += "\n\n📅 Calendario corsi aggiornato:\n" + courses_text
 
             # Costruzione del prompt
             sorted_messages = history[-10:]  # Ultimi 10 messaggi
@@ -88,7 +114,7 @@ def main(context):
                 prompt_parts,
                 generation_config={
                     "temperature": 0.7,
-                    "max_output_tokens": 65536,
+                    "max_output_tokens": 4096,
                     "top_k": 64,
                     "top_p": 0.95
                 }
