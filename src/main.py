@@ -3,6 +3,7 @@ from appwrite.exception import AppwriteException
 import os
 import json
 import csv
+from datetime import datetime
 import google.generativeai as genai
 
 # Headers CORS
@@ -15,20 +16,28 @@ cors_headers = {
 
 
 def load_courses_from_csv(file_path):
-    """Legge i corsi dal CSV e li converte in testo leggibile per il prompt."""
+    """Legge i corsi dal CSV ufficiale e li converte in testo leggibile per il prompt."""
     courses = []
     try:
         with open(file_path, newline='', encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                titolo = row.get("Titolo", "").strip()
-                data = row.get("Data", "").strip()
-                orario = row.get("Orario", "").strip()
-                link = row.get("Link", "").strip()
-                if titolo:
-                    courses.append(f"- {titolo} ({data}, {orario}) → {link}")
+                titolo = row.get("Title", "").strip()
+                start_date = row.get("Start Date", "").strip()
+                city = row.get("City", "").strip()
+
+                if titolo and start_date:
+                    try:
+                        # Se la data è nel formato "YYYY-MM-DD HH:MM:SS"
+                        dt = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+                        data_fmt = dt.strftime("%d/%m/%Y %H:%M")
+                    except Exception:
+                        data_fmt = start_date  # se non riesce, la lascia così com’è
+
+                    courses.append(f"- {titolo} il {data_fmt} a {city}")
     except Exception as e:
         courses.append(f"[⚠️ Errore nel caricamento corsi: {e}]")
+
     return "\n".join(courses)
 
 
@@ -88,7 +97,7 @@ def main(context):
 
             system_instruction = prompt_data.get("system_instruction", "")
 
-            # Carica corsi dal CSV (stesso repo di main.py)
+            # 🔽 Carica corsi dal CSV (deve essere nello stesso repo della funzione)
             courses_file = os.path.join(os.path.dirname(__file__), "Corsi E_Labo.csv")
             courses_text = load_courses_from_csv(courses_file)
 
