@@ -97,12 +97,19 @@ def main(context):
 
             system_instruction = prompt_data.get("system_instruction", "")
 
-            # 🔽 Carica corsi dal CSV (deve essere nello stesso repo della funzione)
+            # 🔽 Data odierna
+            today = datetime.today().strftime("%d/%m/%Y")
+
+            # 🔽 Carica corsi dal CSV (stesso repo della funzione)
             courses_file = os.path.join(os.path.dirname(__file__), "Corsi E_Labo.csv")
             courses_text = load_courses_from_csv(courses_file)
 
-            # Aggiorna il system instruction con i corsi
-            system_instruction += "\n\n📅 Calendario corsi aggiornato:\n" + courses_text
+            # Aggiorna il system instruction con data odierna e corsi
+            system_instruction += (
+                f"\n\n📅 Oggi è il {today}. "
+                f"Quando rispondi, considera questa data come riferimento.\n\n"
+                f"📌 Calendario corsi aggiornato:\n{courses_text}"
+            )
 
             # Costruzione del prompt
             sorted_messages = history[-10:]  # Ultimi 10 messaggi
