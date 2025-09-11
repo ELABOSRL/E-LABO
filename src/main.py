@@ -14,6 +14,76 @@ cors_headers = {
     "Access-Control-Allow-Credentials": "true"
 }
 
+# --- import necessari (aggiungili in cima a main.py) ---
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+# --- funzione per leggere eventi oggi dal calendario office ---
+def get_today_events_from_google(credentials_info, calendar_id, tz_name="Europe/Rome"):
+    creds = service_account.Credentials.from_service_account_info(
+        credentials_info,
+        scopes=["https://www.googleapis.com/auth/calendar.readonly"]
+    )
+    service = build("calendar", "v3", credentials=creds, cache_discovery=False)
+
+    tz = ZoneInfo(tz_name)
+    now = datetime.now(tz)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    end = (now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)).isoformat()
+
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        timeMin=start,
+        timeMax=end,
+        singleEvents=True,
+        orderBy="startTime"
+    ).execute()
+
+    return events_result.get("items", [])
+
+
+# --- funzione di normalizzazione (semplice, estendibile) ---
+def normalize_event_presence(event):
+    summary = (event.get("summary") or "").lower()
+    location = (event.get("location") or "").lower()
+    desc = (event.get("description") or "").lower()
+
+    # regole semplici — adatta ai tuoi casi
+    if any(k in summary for k in ["sopralluogo","cantiere","cliente","visit"]):
+        return "Fuori sede"
+    if any(k in summary for k in ["smart","remoto","da casa","smart working"]):
+        return "Smart working"
+    if "ufficio" in summary or "sede" in summary or "arzignano" in location:
+        return "In ufficio"
+    return "Occupato"
+
+
+# --- funzione per mappare presenza per lista di nomi ---
+def map_staff_presence(events, staff_names):
+    # inizializziamo tutti come "Libero"
+    presences = {name: "Libero" for name in staff_names}
+
+    for ev in events:
+        text_blob = " ".join([
+            ev.get("summary","") or "",
+            ev.get("description","") or "",
+            ev.get("location","") or ""
+        ]).lower()
+
+        for name in staff_names:
+            if name.lower() in text_blob:
+                presences[name] = normalize_event_presence(ev)
+
+        # prova anche dagli attendees (se presenti)
+        for a in ev.get("attendees", []) or []:
+            a_text = ((a.get("displayName","") or "") + " " + (a.get("email","") or "")).lower()
+            for name in staff_names:
+                if name.lower() in a_text:
+                    presences[name] = normalize_event_presence(ev)
+
+    return presences
 
 def load_courses_from_csv(file_path):
     """Legge i corsi dal CSV ufficiale e li converte in testo leggibile per il prompt."""
@@ -90,6 +160,35 @@ def main(context):
                     "headers": cors_headers,
                     "body": json.dumps({"error": "Campo 'msg' mancante o vuoto"})
                 }
+# leggi le credenziali JSON dall'environment (Appwrite)
+creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+calendar_id = os.environ.get("GOOGLE_CALENDAR_ID")
+tz = os.environ.get("GOOGLE_CALENDAR_TZ", "Europe/Rome")
+staff_json = os.environ.get("STAFF_NAMES", "[]")
+
+try:
+    credentials_info = json.loads(creds_json) if creds_json else None
+except Exception:
+    credentials_info = None
+
+staff_names = json.loads(staff_json) if staff_json else []
+
+events = []
+if credentials_info and calendar_id:
+    try:
+        events = get_today_events_from_google(credentials_info, calendar_id, tz)
+    except Exception as e:
+        context.error(f"Errore lettura Google Calendar: {e}")
+
+# otteniamo mappa nome->stato
+presence_map = map_staff_presence(events, staff_names)
+
+# poi metti presence_map in system_instruction (es. elenco testuale)
+presence_lines = []
+for name, state in presence_map.items():
+    presence_lines.append(f"- {name} → {state}")
+
+system_instruction += "\n\n📌 Presenze oggi:\n" + ("\n".join(presence_lines) if presence_lines else "Nessuna informazione sulle presenze oggi.")
 
             # Carica prompt.json
             with open(os.path.join(os.path.dirname(__file__), "prompt.json"), "r", encoding="utf-8") as f:
