@@ -227,8 +227,8 @@ def main(context):
             )
 
             # 🆕 esempio di invio mail (puoi spostarlo dove ti serve davvero)
-            # if "manda una mail" in user_msg.lower():
-            #     send_notification_email(f"Utente ha scritto: {user_msg}")
+             if "manda una mail" in user_msg.lower():
+                 send_notification_email(f"Utente ha scritto: {user_msg}")
 
             return {
                 "statusCode": 200,
