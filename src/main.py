@@ -5,6 +5,7 @@ import json
 import csv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+import smtplib, ssl                        # 🆕  import per email
 import google.generativeai as genai
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -16,6 +17,22 @@ cors_headers = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Credentials": "true"
 }
+
+# --- funzione per inviare email 🆕 ---
+def send_notification_email(body_text):
+    """Invia una mail immediata senza salvare nulla su disco."""
+    smtp_user = os.environ.get("SMTP_USER")
+    smtp_pass = os.environ.get("SMTP_PASS")
+    smtp_to   = os.environ.get("SMTP_TO")
+
+    if not smtp_user or not smtp_pass or not smtp_to:
+        return  # niente credenziali -> esce silenziosamente
+
+    msg = f"Subject: Nuova richiesta dal chatbot\n\n{body_text}"
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, smtp_to, msg)
 
 # --- funzione per leggere eventi oggi dal calendario office ---
 def get_today_events_from_google(credentials_info, calendar_id, tz_name="Europe/Rome"):
@@ -41,7 +58,6 @@ def get_today_events_from_google(credentials_info, calendar_id, tz_name="Europe/
     return events_result.get("items", [])
 
 
-# --- funzione di normalizzazione (semplice, estendibile) ---
 def normalize_event_presence(event):
     summary = (event.get("summary") or "").lower()
     location = (event.get("location") or "").lower()
@@ -56,7 +72,6 @@ def normalize_event_presence(event):
     return "Occupato"
 
 
-# --- funzione per mappare presenza per lista di nomi ---
 def map_staff_presence(events, staff_names):
     presences = {name: "Libero" for name in staff_names}
 
@@ -81,7 +96,6 @@ def map_staff_presence(events, staff_names):
 
 
 def load_courses_from_csv(file_path):
-    """Legge i corsi dal CSV ufficiale e li converte in testo leggibile per il prompt."""
     courses = []
     try:
         with open(file_path, newline='', encoding="utf-8") as csvfile:
@@ -105,7 +119,6 @@ def load_courses_from_csv(file_path):
 
 
 def main(context):
-    # Inizializza Appwrite Client
     client = (
         Client()
         .set_endpoint(os.environ["APPWRITE_FUNCTION_API_ENDPOINT"])
@@ -151,7 +164,7 @@ def main(context):
 
             system_instruction = prompt_data.get("system_instruction", "")
 
-            # 🔽 Leggi presenze Google Calendar
+            # Presenze Google Calendar
             creds_json = os.environ.get("GOOGLE_CREDENTIALS")
             calendar_id = os.environ.get("GOOGLE_CALENDAR_ID")
             tz = os.environ.get("GOOGLE_CALENDAR_TZ", "Europe/Rome")
@@ -178,10 +191,10 @@ def main(context):
                 "\n".join(presence_lines) if presence_lines else "Nessuna informazione sulle presenze oggi."
             )
 
-            # 🔽 Data odierna
+            # Data odierna
             today = datetime.today().strftime("%d/%m/%Y")
 
-            # 🔽 Carica corsi dal CSV
+            # Corsi
             courses_file = os.path.join(os.path.dirname(__file__), "Corsi E_Labo.csv")
             courses_text = load_courses_from_csv(courses_file)
 
@@ -212,6 +225,10 @@ def main(context):
                     "top_p": 0.95
                 }
             )
+
+            # 🆕 esempio di invio mail (puoi spostarlo dove ti serve davvero)
+            # if "manda una mail" in user_msg.lower():
+            #     send_notification_email(f"Utente ha scritto: {user_msg}")
 
             return {
                 "statusCode": 200,
