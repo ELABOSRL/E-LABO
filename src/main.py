@@ -5,7 +5,7 @@ import json
 import csv
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-import smtplib, ssl                        # 🆕  import per email
+import smtplib, ssl
 import google.generativeai as genai
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -18,7 +18,7 @@ cors_headers = {
     "Access-Control-Allow-Credentials": "true"
 }
 
-# --- funzione per inviare email 🆕 ---
+# --- funzione per inviare email ---
 def send_notification_email(body_text):
     """Invia una mail immediata senza salvare nulla su disco."""
     smtp_user = os.environ.get("SMTP_USER")
@@ -26,7 +26,7 @@ def send_notification_email(body_text):
     smtp_to   = os.environ.get("SMTP_TO")
 
     if not smtp_user or not smtp_pass or not smtp_to:
-        return  # niente credenziali -> esce silenziosamente
+        return  # nessuna credenziale -> esce silenziosamente
 
     msg = f"Subject: Nuova richiesta dal chatbot\n\n{body_text}"
     context = ssl.create_default_context()
@@ -34,7 +34,7 @@ def send_notification_email(body_text):
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, smtp_to, msg)
 
-# --- funzione per leggere eventi oggi dal calendario office ---
+# --- funzione per leggere eventi oggi dal calendario ---
 def get_today_events_from_google(credentials_info, calendar_id, tz_name="Europe/Rome"):
     creds = service_account.Credentials.from_service_account_info(
         credentials_info,
@@ -57,11 +57,9 @@ def get_today_events_from_google(credentials_info, calendar_id, tz_name="Europe/
 
     return events_result.get("items", [])
 
-
 def normalize_event_presence(event):
     summary = (event.get("summary") or "").lower()
     location = (event.get("location") or "").lower()
-    desc = (event.get("description") or "").lower()
 
     if any(k in summary for k in ["sopralluogo","cantiere","cliente","visit"]):
         return "Fuori sede"
@@ -70,7 +68,6 @@ def normalize_event_presence(event):
     if "ufficio" in summary or "sede" in summary or "arzignano" in location:
         return "In ufficio"
     return "Occupato"
-
 
 def map_staff_presence(events, staff_names):
     presences = {name: "Libero" for name in staff_names}
@@ -94,7 +91,6 @@ def map_staff_presence(events, staff_names):
 
     return presences
 
-
 def load_courses_from_csv(file_path):
     courses = []
     try:
@@ -116,7 +112,6 @@ def load_courses_from_csv(file_path):
         courses.append(f"[⚠️ Errore nel caricamento corsi: {e}]")
 
     return "\n".join(courses)
-
 
 def main(context):
     client = (
@@ -226,9 +221,9 @@ def main(context):
                 }
             )
 
-            # 🆕 esempio di invio mail (puoi spostarlo dove ti serve davvero)
-             if "manda una mail" in user_msg.lower():
-                 send_notification_email(f"Utente ha scritto: {user_msg}")
+            # ---- invio mail di test ----
+            if "manda una mail" in user_msg.lower():
+                send_notification_email(f"Utente ha scritto: {user_msg}")
 
             return {
                 "statusCode": 200,
