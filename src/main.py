@@ -19,7 +19,7 @@ cors_headers = {
 }
 
 # --- funzione per inviare email ---
-def send_notification_email(body_text):
+def send_notification_email(body_text: str) -> None:
     """Invia una mail immediata senza salvare nulla su disco."""
     smtp_user = os.environ.get("SMTP_USER")
     smtp_pass = os.environ.get("SMTP_PASS")
@@ -186,10 +186,8 @@ def main(context):
                 "\n".join(presence_lines) if presence_lines else "Nessuna informazione sulle presenze oggi."
             )
 
-            # Data odierna
             today = datetime.today().strftime("%d/%m/%Y")
 
-            # Corsi
             courses_file = os.path.join(os.path.dirname(__file__), "Corsi E_Labo.csv")
             courses_text = load_courses_from_csv(courses_file)
 
@@ -221,14 +219,30 @@ def main(context):
                 }
             )
 
-            # ---- invio mail di test ----
-            if "manda una mail" in user_msg.lower():
-                send_notification_email(f"Utente ha scritto: {user_msg}")
+            # --- Nuova logica: il modello può restituire JSON con flag send_email ---
+            reply_text = response.text
+            send_flag = False
+
+            try:
+                # Se il modello restituisce un JSON valido con chiave send_email
+                parsed = json.loads(reply_text)
+                if isinstance(parsed, dict) and parsed.get("send_email") is True:
+                    send_flag = True
+                    # se ha anche un campo "message" usiamo quello come testo email
+                    email_body = parsed.get("message", f"Richiesta utente: {user_msg}")
+                else:
+                    email_body = f"Richiesta utente: {user_msg}"
+            except Exception:
+                # se non è JSON usiamo comunque il testo per l’eventuale mail
+                email_body = f"Richiesta utente: {user_msg}"
+
+            if send_flag:
+                send_notification_email(email_body)
 
             return {
                 "statusCode": 200,
                 "headers": cors_headers,
-                "body": json.dumps({"reply": response.text})
+                "body": json.dumps({"reply": reply_text})
             }
 
         except Exception as e:
