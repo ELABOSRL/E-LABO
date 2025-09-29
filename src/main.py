@@ -3,6 +3,7 @@ from appwrite.exception import AppwriteException
 import os
 import json
 import csv
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import smtplib, ssl
@@ -219,22 +220,22 @@ def main(context):
                 }
             )
 
-            # --- Nuova logica: il modello può restituire JSON con flag send_email ---
+            # --- Nuova logica: estrai JSON incorporato per inviare email ---
             reply_text = response.text
             send_flag = False
+            email_body = f"Richiesta utente: {user_msg}"
 
-            try:
-                # Se il modello restituisce un JSON valido con chiave send_email
-                parsed = json.loads(reply_text)
-                if isinstance(parsed, dict) and parsed.get("send_email") is True:
-                    send_flag = True
-                    # se ha anche un campo "message" usiamo quello come testo email
-                    email_body = parsed.get("message", f"Richiesta utente: {user_msg}")
-                else:
-                    email_body = f"Richiesta utente: {user_msg}"
-            except Exception:
-                # se non è JSON usiamo comunque il testo per l’eventuale mail
-                email_body = f"Richiesta utente: {user_msg}"
+            # cerca un oggetto JSON con "send_email": true
+            match = re.search(r'\{.*"send_email"\s*:\s*true.*\}', reply_text,
+                              re.DOTALL | re.IGNORECASE)
+            if match:
+                try:
+                    parsed = json.loads(match.group(0))
+                    if parsed.get("send_email") is True:
+                        send_flag = True
+                        email_body = parsed.get("message", email_body)
+                except Exception as e:
+                    context.error(f"Errore parsing JSON incorporato: {e}")
 
             if send_flag:
                 send_notification_email(email_body)
