@@ -234,6 +234,8 @@ def main(context):
                     if parsed.get("send_email") is True:
                         send_flag = True
                         email_body = parsed.get("message", email_body)
+                    # rimuove il JSON dal testo visibile in chat
+                    reply_text = reply_text.replace(match.group(0), "").strip()
                 except Exception as e:
                     context.error(f"Errore parsing JSON incorporato: {e}")
 
