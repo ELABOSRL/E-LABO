@@ -208,7 +208,7 @@ def main(context):
 
             gemini_api_key = os.environ.get("GEMINI_API_KEY")
             genai.configure(api_key=gemini_api_key)
-            model = genai.GenerativeModel("gemini-2.0-flash-thinking-exp-01-21")
+            model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
 
             response = model.generate_content(
                 prompt_parts,
